@@ -37,7 +37,7 @@
 
   DialKit.createDialRoot({ theme: "dark", defaultOpen: false });
   const dial = DialKit.createDialKit("Orbit", {
-    fancy: true, // overlay showing how the orbit is constructed
+    fancy: false, // overlay showing how the orbit is constructed
 
     // How the ring turns when dragged and how it settles on release.
     motion: {
@@ -49,8 +49,8 @@
       // Images tip over while the ring is turning and settle flat as it stops.
       turnTilt: {
         enabled: false,
-        mode: { type: "select", options: ["bank", "lean"], default: "bank" }, // bank tips in 3D, lean rotates flat on screen
-        amount: [20, -60, 60, 1], // degrees at a turning speed of 180°/s; negative tips the other way
+        mode: { type: "select", options: ["bank", "lean"], default: "lean" }, // bank tips in 3D, lean rotates flat on screen
+        amount: [10, -60, 60, 1], // degrees at a turning speed of 180°/s; negative tips the other way
       },
     },
 
@@ -74,7 +74,7 @@
         enabled: true,
         mode: { type: "select", options: ["right", "pointer", "bank", "lean"], default: "right" },
         range: [90, 0, 180, 5], // degrees either side of the front that can tilt; 90 is -90° to 90°
-        amount: [25, -60, 60, 1], // maximum degrees of tilt
+        amount: [3, -60, 60, 1], // maximum degrees of tilt
         reach: [400, 50, 1200, 10], // "pointer" mode: distance from an image at which its tilt is at maximum
         scale: [1.04, 1, 1.3, 0.01], // how much the hovered image grows
         response: [10, 2, 30, 1], // how quickly it follows the pointer; higher is snappier
