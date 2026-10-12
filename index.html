@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Images Circle</title>
+    <link rel="stylesheet" href="./vendor/dialkit/styles.css" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="stage" id="stage" aria-label="Orbiting image gallery"></main>
+
+    <button class="switch" id="skeleton-switch" type="button" role="switch" aria-checked="true" aria-label="Skeleton overlay">
+      <span class="switch-thumb"></span>
+      <span class="switch-option" data-state="off">Off</span>
+      <span class="switch-option" data-state="on">On</span>
+    </button>
+
+    <script src="./vendor/motion/motion.js"></script>
+    <script src="./vendor/dialkit/browser.global.js"></script>
+    <script src="./orbit.js"></script>
+  </body>
+</html>

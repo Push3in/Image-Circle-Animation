@@ -1,0 +1,229 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #121212;
+  overflow: hidden;
+}
+
+.stage {
+  position: fixed;
+  inset: 0;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.stage.drag-anywhere {
+  cursor: grab;
+}
+
+.orbit-item {
+  position: absolute;
+  top: 0;
+  left: 0;
+  margin: 0;
+  transform-style: preserve-3d;
+  will-change: translate, width, height, transform;
+}
+
+.orbit-card {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  will-change: transform, opacity, filter;
+}
+
+.orbit-item img {
+  transition: opacity 0.35s ease;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.orbit-item.is-front {
+  cursor: grab;
+}
+
+.stage.is-dragging,
+.stage.is-dragging .orbit-item {
+  cursor: grabbing;
+}
+
+.orbit-item:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 4px;
+}
+
+/* Construction overlay, toggled by the "skeleton" dial. */
+.skeleton {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+  font: 11px/1 ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+.show-skeleton .skeleton {
+  opacity: var(--sk-strength, 1);
+}
+
+.show-skeleton .orbit-item img {
+  opacity: var(--sk-image-dim, 0.3);
+}
+
+.skeleton * {
+  fill: none;
+  stroke-width: var(--sk-line, 1px);
+  vector-effect: non-scaling-stroke;
+}
+
+.sk-path {
+  stroke: rgb(255 255 255 / 0.45);
+}
+
+.sk-guide {
+  stroke: rgb(255 255 255 / 0.6);
+}
+
+.sk-stop {
+  stroke: rgb(255 255 255 / 0.3);
+  stroke-dasharray: 4 4;
+}
+
+.sk-stop-front {
+  stroke: #ffb347;
+}
+
+.sk-spoke {
+  stroke: var(--sk-accent, #5ed2ff);
+  stroke-opacity: 0.3;
+}
+
+.sk-live {
+  stroke: var(--sk-accent, #5ed2ff);
+}
+
+.sk-gap {
+  stroke: #ffb347;
+  stroke-opacity: 0.35;
+  stroke-width: calc(var(--sk-line, 1px) * 3);
+}
+
+.sk-fade {
+  stroke: #ffb347;
+  stroke-width: calc(var(--sk-line, 1px) * 3);
+}
+
+.skeleton .sk-dot {
+  fill: var(--sk-accent, #5ed2ff);
+  stroke: none;
+}
+
+.skeleton text {
+  stroke: none;
+}
+
+.skeleton .sk-note {
+  fill: rgb(255 255 255 / 0.5);
+}
+
+.skeleton .sk-note-front {
+  fill: #ffb347;
+}
+
+.skeleton .sk-live-label {
+  fill: var(--sk-accent, #5ed2ff);
+}
+
+/* Skeleton on/off switch. */
+.switch {
+  position: fixed;
+  left: 28px;
+  bottom: 28px;
+  z-index: 1001;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 4px;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 999px;
+  background: rgb(34 34 34 / 0.7);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.4), inset 0 1px 0 rgb(255 255 255 / 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  font: 500 11px/1 ui-monospace, "SF Mono", Menlo, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.switch:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+
+.switch-thumb {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.14);
+  transition:
+    translate 0.45s cubic-bezier(0.34, 1.4, 0.64, 1),
+    background-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.switch[aria-checked="true"] .switch-thumb {
+  translate: 100% 0;
+  background: #5ed2ff;
+  box-shadow: 0 0 18px rgb(94 210 255 / 0.55);
+}
+
+.switch:active .switch-thumb {
+  scale: 0.94;
+}
+
+.switch-option {
+  position: relative;
+  min-width: 52px;
+  padding: 9px 14px;
+  color: rgb(255 255 255 / 0.45);
+  text-align: center;
+  transition: color 0.3s ease;
+}
+
+.switch[aria-checked="false"] .switch-option[data-state="off"] {
+  color: #fff;
+}
+
+.switch[aria-checked="true"] .switch-option[data-state="on"] {
+  color: #10222b;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switch-thumb,
+  .switch-option,
+  .skeleton,
+  .orbit-item img {
+    transition: none;
+  }
+}
