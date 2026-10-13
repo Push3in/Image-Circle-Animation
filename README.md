@@ -51,16 +51,19 @@ Angles are measured from the front image: 0° is right-centre, positive angles r
 | Fancy | Master on/off for the overlay (same as the bottom-left pill) |
 | Motion | The spring used on release (stiffness 230, damping 35) |
 | Motion → Drag | Drag from anywhere or only the front image; how far a flick carries |
-| Motion → Turn Tilt | Tip the images while the ring is turning (off by default) |
 | Ring | Radius, horizontal and vertical stretch, size of the left gap |
 | Images | Scale and corner radius |
-| Images → Hover Tilt | Mode, which images tilt (range), amount, reach, lift scale, response |
 | Gap Fade | Fade arc and blur |
+| Dimming | On/off, far opacity, and the angles where dimming starts and is fully applied |
 | Perspective | 3D depth of the left side, viewer distance, whether images turn with the plane |
-| Perspective → Dimming | Far opacity, and the angles where dimming starts and is fully applied |
+| Tilt | Viewer distance used for every tilt |
+| Tilt → Hover | Mode, which images tilt (range), amount, reach, lift scale, response |
+| Tilt → Turn | Tip the images while the ring is turning (off by default) |
 | Skeleton | What the overlay draws and how it looks (starts collapsed) |
 
 Perspective depth starts at 0, so the ring loads flat. Raise **Perspective → Depth** to make the left side recede.
+
+Perspective and Tilt are independent. Perspective places the images on a receding plane and uses its own viewer distance. Each tilt is then drawn about the image's own centre using **Tilt → Perspective**, so a tilt looks the same anywhere on the ring and does not change when the ring's perspective does. Dimming works with or without depth.
 
 ## Files
 

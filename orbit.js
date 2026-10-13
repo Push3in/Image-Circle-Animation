@@ -46,12 +46,6 @@
         anywhere: false, // off: only the front (right-centre) image can be dragged
         flick: [0.15, 0, 0.6, 0.01], // seconds of travel a release carries on for; 0 snaps to the nearest image
       },
-      // Images tip over while the ring is turning and settle flat as it stops.
-      turnTilt: {
-        enabled: false,
-        mode: { type: "select", options: ["bank", "lean"], default: "lean" }, // bank tips in 3D, lean rotates flat on screen
-        amount: [10, -60, 60, 1], // degrees at a turning speed of 180°/s; negative tips the other way
-      },
     },
 
     // Shape of the ring the images sit on.
@@ -65,20 +59,6 @@
     images: {
       scale: [1, 0.5, 1.5, 0.01],
       cornerRadius: [2, 0, 24, 1],
-      // While the pointer is over an image, the images within `range` of the
-      // front tilt. "right" leans the right side of them all back by `amount`;
-      // "pointer" turns them all to face away from the pointer, so each tilts
-      // by where the pointer is relative to it; "bank" and "lean" give just
-      // the hovered image a set tilt for its place on the ring.
-      hoverTilt: {
-        enabled: true,
-        mode: { type: "select", options: ["right", "pointer", "bank", "lean"], default: "right" },
-        range: [90, 0, 180, 5], // degrees either side of the front that can tilt; 90 is -90° to 90°
-        amount: [3, -60, 60, 1], // maximum degrees of tilt
-        reach: [400, 50, 1200, 10], // "pointer" mode: distance from an image at which its tilt is at maximum
-        scale: [1.04, 1, 1.3, 0.01], // how much the hovered image grows
-        response: [10, 2, 30, 1], // how quickly it follows the pointer; higher is snappier
-      },
     },
 
     // How an image disappears while it crosses the left gap.
@@ -87,17 +67,46 @@
       blur: [12, 0, 40, 1], // px of blur reached when fully faded
     },
 
-    // 3D depth: the ring becomes a plane whose left side recedes from the viewer.
-    perspective: {
+    // Images further round the back are dimmed, whether or not the ring has depth.
+    dimming: {
       enabled: true,
-      distance: [1200, 300, 4000, 10], // viewer distance; smaller is more dramatic
-      depth: [0, 0, 1500, 10], // how far back the left side sits; the front stays put
-      tiltImages: true, // turn images to lie in the plane instead of facing the viewer
-      // Images further back are dimmed.
-      dimming: {
-        farOpacity: [0.35, 0, 1, 0.01], // image opacity at the far left; the front stays at 1
-        clearUntil: [30, 0, 180, 1], // images within this angle of the front are not dimmed
-        dimFrom: [60, 0, 180, 1], // dimming is fully applied from this angle round the back
+      farOpacity: [0.35, 0, 1, 0.01], // image opacity at the far left; the front stays at 1
+      clearUntil: [30, 0, 180, 1], // images within this angle of the front are not dimmed
+      dimFrom: [60, 0, 180, 1], // dimming is fully applied from this angle round the back
+    },
+
+    // 3D depth: the ring becomes a plane whose left side recedes from the
+    // viewer. This places the images; it has no say in how they tilt.
+    perspective: {
+      depth: [0, 0, 1500, 10], // how far back the left side sits; the front stays put, and 0 is flat
+      distance: [1200, 300, 4000, 10], // viewer distance once there is depth; smaller is more dramatic
+      turnImages: true, // turn images to lie in the plane instead of facing the viewer
+    },
+
+    // Tilts are added on top of an image's place on the ring. Each image tilts
+    // about its own centre with its own perspective, so a tilt looks the same
+    // anywhere on the ring and whatever the ring's perspective is set to.
+    tilt: {
+      perspective: [1200, 300, 4000, 10], // viewer distance for a tilted image; smaller foreshortens more
+      // While the pointer is over an image, the images within `range` of the
+      // front tilt. "right" leans the right side of them all back by `amount`;
+      // "pointer" turns them all to face away from the pointer, so each tilts
+      // by where the pointer is relative to it; "bank" and "lean" give just
+      // the hovered image a set tilt for its place on the ring.
+      hover: {
+        enabled: true,
+        mode: { type: "select", options: ["right", "pointer", "bank", "lean"], default: "right" },
+        range: [90, 0, 180, 5], // degrees either side of the front that can tilt; 90 is -90° to 90°
+        amount: [3, -60, 60, 1], // maximum degrees of tilt
+        reach: [400, 50, 1200, 10], // "pointer" mode: distance from an image at which its tilt is at maximum
+        scale: [1.04, 1, 1.3, 0.01], // how much the hovered image grows
+        response: [10, 2, 30, 1], // how quickly it follows the pointer; higher is snappier
+      },
+      // Images tip over while the ring is turning and settle flat as it stops.
+      turn: {
+        enabled: false,
+        mode: { type: "select", options: ["bank", "lean"], default: "lean" }, // bank tips in 3D, lean rotates flat on screen
+        amount: [10, -60, 60, 1], // degrees at a turning speed of 180°/s; negative tips the other way
       },
     },
 
@@ -146,9 +155,9 @@
     img.src = `./Images/${file}`;
     img.alt = alt;
     img.draggable = false;
-    // The figure is the pointer target and never tilts under the pointer; the
-    // card inside it carries the hover tilt, so hovering an edge can't swing
-    // that edge out from under the cursor.
+    // The figure is the pointer target and holds the image's place on the
+    // ring; the card inside it carries the tilts, so hovering an edge can't
+    // swing that edge out from under the cursor.
     const card = document.createElement("div");
     card.className = "orbit-card";
     card.append(img);
@@ -220,13 +229,13 @@
 
     // Perspective: depth falls off linearly from the front (0) to the far
     // left (-depth), which is a flat plane turned about a vertical axis.
-    const { perspective } = dial.values;
-    const depth = perspective.enabled ? perspective.depth * fit : 0;
+    const { perspective, dimming, tilt: tilts } = dial.values;
+    const depth = perspective.depth * fit;
     const viewer = perspective.distance * fit;
-    const tilt = perspective.enabled && perspective.tiltImages ? Math.atan2(depth, radiusX * 2) : 0;
-    // The stage always has perspective so tilts read as 3D; `enabled` only
-    // controls the receding plane and the dimming.
-    stage.style.perspective = `${viewer}px`;
+    const planeTurn = perspective.turnImages ? Math.atan2(depth, radiusX * 2) : 0;
+    stage.style.perspective = depth > 0 ? `${viewer}px` : "none";
+    // Tilts get a perspective of their own, applied per image.
+    const tiltViewer = tilts.perspective * fit;
 
     // `flat` is a position on the ring before perspective; `depthAt` and
     // `project` reproduce the browser's 3D projection so the overlay can be
@@ -250,8 +259,9 @@
         return project(at.x + offsetX, at.y + offsetY, depthAt(at.x));
       },
       // Projected corners of a box centred on the ring at `angle`. Mirrors
-      // the CSS transform given to the images, applied innermost first: hover
-      // scale and tilt, the turn tilt (`tip` radians), the plane's turn, depth.
+      // the CSS transforms given to the images, applied innermost first: hover
+      // scale and tilt and the turn tilt (`tip` radians), drawn flat with the
+      // tilt perspective; then the plane's turn and depth.
       box(angle, width, height, tip = 0, hover = null) {
         const at = flat(angle);
         const z = depthAt(at.x);
@@ -263,11 +273,12 @@
               if (hover.axis) p = turn(p, hover.axis, hover.angle);
               else p = turn(turn(p, [0, 1, 0], hover.y), [1, 0, 0], hover.x);
             }
-            p = turn(p, tiltAxis(motionTilt.mode, angle), tip);
+            p = turn(p, tiltAxis(turnTilt.mode, angle), tip);
+            const near = tiltViewer / (tiltViewer - p[2]);
             const corner = project(
-              at.x + p[0] * Math.cos(tilt) - p[2] * Math.sin(tilt),
-              at.y + p[1],
-              z + p[0] * Math.sin(tilt) + p[2] * Math.cos(tilt)
+              at.x + p[0] * near * Math.cos(planeTurn),
+              at.y + p[1] * near,
+              z + p[0] * near * Math.sin(planeTurn)
             );
             return `${corner.x.toFixed(1)},${corner.y.toFixed(1)}`;
           })
@@ -297,11 +308,11 @@
     // Turn tilt: every image tips by the same angle, proportional to how
     // fast the ring is turning. "bank" tips in 3D about the line from the
     // ring's centre through the image; "lean" rotates flat on screen.
-    const motionTilt = dial.values.motion.turnTilt;
-    const tip = motionTilt.enabled
-      ? (Math.max(-2, Math.min(2, spinVelocity / 180)) * motionTilt.amount * Math.PI) / 180
+    const turnTilt = tilts.turn;
+    const tip = turnTilt.enabled
+      ? (Math.max(-2, Math.min(2, spinVelocity / 180)) * turnTilt.amount * Math.PI) / 180
       : 0;
-    const { hoverTilt } = dial.values.images;
+    const hoverTilt = tilts.hover;
     const edge = gapEdge();
     const live = [];
 
@@ -320,29 +331,30 @@
       const fadeArc = Math.min(gapFade.arc, 180 - edge);
       const fadeOpacity = Math.max(0, Math.min(1, (edge + fadeArc - Math.abs(angle)) / fadeArc));
       const blur = (1 - fadeOpacity) * gapFade.blur * fit;
-      // With perspective on, images also dim the deeper they sit, down to
-      // `farOpacity` at the far left. Images within `clearUntil` degrees of
+      // Images also dim the further left they sit, down to `farOpacity` at
+      // the far left. Images within `clearUntil` degrees of
       // the front are left at 1, and the dimming eases in up to `dimFrom` so
       // an image moving between the two doesn't jump.
       const depthRatio = (1 - (center.x - centerX) / radiusX) / 2;
-      const { farOpacity, clearUntil, dimFrom } = perspective.dimming;
+      const { farOpacity, clearUntil, dimFrom } = dimming;
       const dimAmount =
         dimFrom > clearUntil
           ? Math.max(0, Math.min(1, (Math.abs(angle) - clearUntil) / (dimFrom - clearUntil)))
           : Number(Math.abs(angle) >= dimFrom);
-      const depthOpacity = perspective.enabled ? 1 - dimAmount * depthRatio * (1 - farOpacity) : 1;
+      const depthOpacity = dimming.enabled ? 1 - dimAmount * depthRatio * (1 - farOpacity) : 1;
       const opacity = fadeOpacity * depthOpacity;
 
       item.style.width = `${width}px`;
       item.style.height = `${height}px`;
       item.style.translate = `${x}px ${y}px`;
-      const transforms = [];
-      if (perspective.enabled) {
-        transforms.push(`translateZ(${depthAt(center.x).toFixed(2)}px)`, `rotateY(${(-tilt).toFixed(4)}rad)`);
-      }
+      // The figure takes its place on the receding plane; the tilts go on the
+      // card inside it.
+      item.style.transform =
+        depth > 0 ? `translateZ(${depthAt(center.x).toFixed(2)}px) rotateY(${(-planeTurn).toFixed(4)}rad)` : "none";
+      const tilted = [];
       if (tip !== 0) {
-        const [kx, ky, kz] = tiltAxis(motionTilt.mode, angle);
-        transforms.push(`rotate3d(${kx.toFixed(4)}, ${ky.toFixed(4)}, ${kz}, ${tip.toFixed(4)}rad)`);
+        const [kx, ky, kz] = tiltAxis(turnTilt.mode, angle);
+        tilted.push(`rotate3d(${kx.toFixed(4)}, ${ky.toFixed(4)}, ${kz}, ${tip.toFixed(4)}rad)`);
       }
       // Hover tilt, only for images within `range` of the front.
       const lifted = hoverPoses[index].amount;
@@ -355,23 +367,24 @@
           // Turn about the image's vertical centre line: right side back.
           hover = { scale, x: 0, y: maxTilt * pointerPose.amount };
         } else if (hoverTilt.mode === "pointer" && pointerPose.amount > 0.001) {
-          // Offset from this image to the pointer, as -1 to 1 at `reach`. The
-          // side nearest the pointer swings away from the viewer.
+          // Offset from where this image is drawn to the pointer, as -1 to 1
+          // at `reach`. The side nearest the pointer swings away from the viewer.
           const reach = hoverTilt.reach * fit;
-          const offsetX = Math.max(-1, Math.min(1, (pointerPose.x - center.x) / reach));
-          const offsetY = Math.max(-1, Math.min(1, (pointerPose.y - center.y) / reach));
+          const shown = geometry.point(angle);
+          const offsetX = Math.max(-1, Math.min(1, (pointerPose.x - shown.x) / reach));
+          const offsetY = Math.max(-1, Math.min(1, (pointerPose.y - shown.y) / reach));
           hover = { scale, x: -offsetY * maxTilt * pointerPose.amount, y: offsetX * maxTilt * pointerPose.amount };
         } else if ((hoverTilt.mode === "bank" || hoverTilt.mode === "lean") && lifted > 0.001) {
           hover = { scale, axis: tiltAxis(hoverTilt.mode, angle), angle: maxTilt * lifted };
         }
       }
       if (!hover && lifted > 0.001) hover = { scale, x: 0, y: 0 };
-      if (!hover) card.style.transform = "none";
-      else if (hover.axis) {
-        card.style.transform = `rotate3d(${hover.axis[0].toFixed(4)}, ${hover.axis[1].toFixed(4)}, ${hover.axis[2]}, ${hover.angle.toFixed(4)}rad) scale(${scale.toFixed(4)})`;
-      } else {
-        card.style.transform = `rotateX(${hover.x.toFixed(4)}rad) rotateY(${hover.y.toFixed(4)}rad) scale(${scale.toFixed(4)})`;
+      if (hover?.axis) {
+        tilted.push(`rotate3d(${hover.axis[0].toFixed(4)}, ${hover.axis[1].toFixed(4)}, ${hover.axis[2]}, ${hover.angle.toFixed(4)}rad) scale(${scale.toFixed(4)})`);
+      } else if (hover) {
+        tilted.push(`rotateX(${hover.x.toFixed(4)}rad) rotateY(${hover.y.toFixed(4)}rad) scale(${scale.toFixed(4)})`);
       }
+      card.style.transform = tilted.length ? `perspective(${tiltViewer.toFixed(1)}px) ${tilted.join(" ")}` : "none";
       angles[index] = angle;
       card.style.opacity = opacity;
       card.style.filter = blur > 0 ? `blur(${blur.toFixed(2)}px)` : "none";
@@ -438,7 +451,7 @@
         `<path class="sk-guide" d="M${n(center.x - 8)} ${n(center.y)}h16M${n(center.x)} ${n(center.y - 8)}v16" />`,
         `<text class="sk-note" x="${n(center.x)}" y="${n(center.y + 12 + lineHeight)}" text-anchor="middle">rotation ${wrap(0, 360, rotation).toFixed(labels.decimals)}°</text>`,
         `<text class="sk-note" x="${n(center.x)}" y="${n(center.y + 12 + lineHeight * 2)}" text-anchor="middle">step ${displayAngle(step).toFixed(1)}° per image</text>`,
-        `<text class="sk-note" x="${n(center.x)}" y="${n(center.y + 12 + lineHeight * 3)}" text-anchor="middle">tilt ${((tip * 180) / Math.PI).toFixed(1)}°</text>`
+        `<text class="sk-note" x="${n(center.x)}" y="${n(center.y + 12 + lineHeight * 3)}" text-anchor="middle">turn tilt ${((tip * 180) / Math.PI).toFixed(1)}°</text>`
       );
     }
 
@@ -517,7 +530,7 @@
   function easeHover(now) {
     const seconds = Math.min((now - hoverTime) / 1000, 0.064);
     hoverTime = now;
-    const blend = reducedMotion.matches ? 1 : 1 - Math.exp(-seconds * dial.values.images.hoverTilt.response);
+    const blend = reducedMotion.matches ? 1 : 1 - Math.exp(-seconds * dial.values.tilt.hover.response);
     let moving = false;
     const ease = (pose, key, goal) => {
       const gap = pose[goal] - pose[key];
@@ -549,7 +562,7 @@
 
   stage.addEventListener("pointermove", (event) => {
     // No tilt for touch (nothing hovers) or while dragging.
-    const { hoverTilt } = dial.values.images;
+    const hoverTilt = dial.values.tilt.hover;
     if (event.pointerType === "touch" || drag || !hoverTilt.enabled) return;
     const hovered = items.indexOf(event.target.closest(".orbit-item"));
     const tiltable = hovered !== -1 && Math.abs(angles[hovered]) <= hoverTilt.range + 0.5;
@@ -641,7 +654,7 @@
   });
 
   // While the pointer is held still, let the measured speed (and with it the
-  // motion tilt) die away.
+  // turn tilt) die away.
   function holdDrag() {
     if (!drag) return;
     if (performance.now() - drag.time > 40 && spinVelocity !== 0) {
