@@ -2986,15 +2986,19 @@ Apply these values as the new defaults in the ${hookName} call.`;
         glyph.style.transform = open ? "rotate(180deg)" : "";
         glyph.style.transition = "transform 250ms ease";
       }
-      if (changed && before.width > 0) {
+      const nested = !props.isRoot && !props.isSection;
+      if (changed && (before.width > 0 || (nested && open))) {
         if (props.isRoot && !props.inline) {
           const after = node.getBoundingClientRect();
           node.style.maxHeight = "calc(100dvh - 32px)";
           animation = animateSpring(node, (p) => ({ width: `${before.width + (after.width - before.width) * p}px`, height: `${before.height + (after.height - before.height) * p}px`, borderRadius: `${(wasOpen ? 14 : 21) + (open ? -7 : 7) * p}px` }));
-        } else if (!props.isRoot && !props.isSection) {
+        } else if (nested) {
           content.style.display = "";
+          // A closed folder's content is display: none and measures 0 × 0, so
+          // opening grows it from 0 rather than skipping the animation.
+          const startHeight = before.width > 0 ? before.height : 0;
           const targetHeight = open ? content.scrollHeight : 0;
-          animation = animateSpring(content, (p) => ({ height: `${before.height + (targetHeight - before.height) * p}px` }));
+          animation = animateSpring(content, (p) => ({ height: `${startHeight + (targetHeight - startHeight) * p}px` }));
           if (!open) {
             if (animation)
               animation.onfinish = () => {
@@ -3551,6 +3555,15 @@ Apply these values as the new defaults in the ${hookName} call.`;
   }
 
   // src/vanilla/menus.ts
+  // Local change: dropdowns fade and scale in from the trigger, and fade out,
+  // instead of appearing and vanishing in a single frame.
+  const POPUP_HIDDEN = { opacity: 0, transform: "translateY(-4px) scale(0.97)" };
+  const POPUP_SHOWN = { opacity: 1, transform: "none" };
+  function animatePopup(node, frames, options) {
+    if (typeof node.animate !== "function" || window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+      return;
+    return node.animate(frames, options);
+  }
   function popupMenu(trigger, className, kind, populate) {
     let popup;
     let stopKeyboard, stopPosition;
@@ -3562,8 +3575,16 @@ Apply these values as the new defaults in the ${hookName} call.`;
       stopKeyboard?.();
       stopPosition?.();
       stopKeyboard = stopPosition = void 0;
-      popup?.remove();
+      const leaving = popup;
       popup = void 0;
+      if (leaving) {
+        leaving.style.pointerEvents = "none";
+        const fade = animatePopup(leaving, [POPUP_SHOWN, POPUP_HIDDEN], { duration: 120, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "forwards" });
+        if (fade)
+          fade.onfinish = () => leaving.remove();
+        else
+          leaving.remove();
+      }
       trigger.dataset.open = "false";
       trigger.setAttribute("aria-expanded", "false");
       document.removeEventListener("pointerdown", outside);
@@ -3586,8 +3607,9 @@ Apply these values as the new defaults in the ${hookName} call.`;
           return;
         }
         const p = getDropdownPosition(trigger, root, { fixed: true, dropdownHeight: popup.scrollHeight + 2, ...kind === "help" ? { width: 280 } : {} });
-        Object.assign(popup.style, { top: `${p.top}px`, left: `${p.left}px`, width: `${p.width}px`, maxHeight: `${p.maxHeight}px` });
+        Object.assign(popup.style, { top: `${p.top}px`, left: `${p.left}px`, width: `${p.width}px`, maxHeight: `${p.maxHeight}px`, transformOrigin: p.above ? "bottom" : "top" });
       }, () => popup);
+      animatePopup(popup, [POPUP_HIDDEN, POPUP_SHOWN], { duration: 180, easing: "cubic-bezier(0.2, 0, 0, 1)" });
       stopKeyboard = observeDropdownKeyboard(trigger, () => popup, close, kind);
       document.addEventListener("pointerdown", outside);
     }
