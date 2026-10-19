@@ -23,8 +23,12 @@ body {
   touch-action: none;
 }
 
-.stage.drag-anywhere {
+.stage.can-drag.drag-anywhere {
   cursor: grab;
+}
+
+.stage.can-click .orbit-item {
+  cursor: pointer;
 }
 
 .orbit-item {
@@ -52,7 +56,7 @@ body {
   pointer-events: none;
 }
 
-.orbit-item.is-front {
+.stage.can-drag .orbit-item.is-front {
   cursor: grab;
 }
 

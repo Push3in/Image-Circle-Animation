@@ -39,12 +39,30 @@
   const dial = DialKit.createDialKit("Orbit", {
     fancy: false, // overlay showing how the orbit is constructed
 
-    // How the ring turns when dragged and how it settles on release.
+    // The spring the ring settles with, after a drag, click or key press.
     motion: {
       transition: { type: "spring", stiffness: 230, damping: 35, mass: 1 },
+    },
+
+    // How the ring is turned by hand.
+    interaction: {
       drag: {
+        enabled: true,
         anywhere: false, // off: only the front (right-centre) image can be dragged
+        // "ring" follows the pointer round the ring; "vertical" and "horizontal"
+        // turn it by straight-line movement instead.
+        mode: { type: "select", options: ["ring", "vertical", "horizontal"], default: "ring" },
+        follow: [1, 0.25, 3, 0.05], // how far the ring turns per pointer movement; 1 keeps the image under the pointer
         flick: [0.15, 0, 0.6, 0.01], // seconds of travel a release carries on for; 0 snaps to the nearest image
+        maxSpeed: [1440, 180, 3600, 30], // degrees per second a flick is capped at
+      },
+      // Clicking an image other than the front one.
+      click: {
+        enabled: true,
+        // "bring to front" turns the ring until the clicked image is at the
+        // front; "one step" moves one place towards it.
+        mode: { type: "select", options: ["bring to front", "one step"], default: "bring to front" },
+        frontAdvances: false, // clicking the front image moves the ring on one place
       },
     },
 
@@ -59,20 +77,18 @@
     images: {
       scale: [1, 0.5, 1.5, 0.01],
       cornerRadius: [2, 0, 24, 1],
-    },
-
-    // How an image disappears while it crosses the left gap.
-    gapFade: {
-      arc: [10, 1, 30, 1], // degrees past each gap edge over which it fades
-      blur: [12, 0, 40, 1], // px of blur reached when fully faded
-    },
-
-    // Images further round the back are dimmed, whether or not the ring has depth.
-    dimming: {
-      enabled: true,
-      farOpacity: [0.35, 0, 1, 0.01], // image opacity at the far left; the front stays at 1
-      clearUntil: [30, 0, 180, 1], // images within this angle of the front are not dimmed
-      dimFrom: [60, 0, 180, 1], // dimming is fully applied from this angle round the back
+      // How an image disappears while it crosses the left gap.
+      gapFade: {
+        arc: [10, 1, 30, 1], // degrees past each gap edge over which it fades
+        blur: [12, 0, 40, 1], // px of blur reached when fully faded
+      },
+      // Images further round the back are dimmed, whether or not the ring has depth.
+      dimming: {
+        enabled: true,
+        farOpacity: [0.35, 0, 1, 0.01], // image opacity at the far left; the front stays at 1
+        clearUntil: [30, 0, 180, 1], // images within this angle of the front are not dimmed
+        dimFrom: [60, 0, 180, 1], // dimming is fully applied from this angle round the back
+      },
     },
 
     // 3D depth: the ring becomes a plane whose left side recedes from the
@@ -219,8 +235,7 @@
 
   function layout() {
     const { radius, horizontalStretch, verticalStretch } = dial.values.ring;
-    const { scale: imageScale, cornerRadius } = dial.values.images;
-    const { gapFade } = dial.values;
+    const { scale: imageScale, cornerRadius, gapFade, dimming } = dial.values.images;
     const fit = Math.min(stage.clientWidth / DESIGN.width, stage.clientHeight / DESIGN.height);
     const centerX = stage.clientWidth / 2;
     const centerY = stage.clientHeight / 2;
@@ -229,7 +244,7 @@
 
     // Perspective: depth falls off linearly from the front (0) to the far
     // left (-depth), which is a flat plane turned about a vertical axis.
-    const { perspective, dimming, tilt: tilts } = dial.values;
+    const { perspective, tilt: tilts } = dial.values;
     const depth = perspective.depth * fit;
     const viewer = perspective.distance * fit;
     const planeTurn = perspective.turnImages ? Math.atan2(depth, radiusX * 2) : 0;
@@ -397,7 +412,9 @@
       live.push({ index, angle, size, width, height, opacity, fadeOpacity, blur, hover });
     });
 
-    stage.classList.toggle("drag-anywhere", dial.values.motion.drag.anywhere);
+    stage.classList.toggle("can-drag", dial.values.interaction.drag.enabled);
+    stage.classList.toggle("drag-anywhere", dial.values.interaction.drag.anywhere);
+    stage.classList.toggle("can-click", dial.values.interaction.click.enabled);
     const showSkeleton = dial.values.fancy;
     skeletonSwitch.setAttribute("aria-checked", String(showSkeleton));
     stage.classList.toggle("show-skeleton", showSkeleton);
@@ -408,8 +425,7 @@
   // stops each image is interpolated between, the gap and fade zones, and
   // every image's live values as the ring turns. Each layer has its own dial.
   function drawSkeleton({ live, geometry, fit, tip }) {
-    const { gapFade } = dial.values;
-    const imageScale = dial.values.images.scale;
+    const { scale: imageScale, gapFade } = dial.values.images;
     const { guides, sizeStops, imageMarkers: markers, imageLabels: labels, style } = dial.values.skeleton;
     const { point, box } = geometry;
     const n = (value) => value.toFixed(1);
@@ -581,8 +597,10 @@
   stage.addEventListener("pointerleave", clearHover);
 
   // Springs the ring to `destination` (a whole number of steps), carrying
-  // over `velocity` in degrees per second from a drag.
-  function settle(destination, velocity = 0) {
+  // over `velocity` in degrees per second. By default that is the speed the
+  // ring is already turning at, so a step that interrupts another keeps its
+  // momentum instead of starting again from rest.
+  function settle(destination, velocity = spinVelocity) {
     target = destination;
     frontIndex = wrap(0, items.length, -Math.round(target / step));
     spin?.stop();
@@ -612,10 +630,12 @@
     });
   }
 
-  // The orbit only moves when it is dragged. Dragging the front
-  // (right-centre) image turns the ring with the pointer; on release it
-  // springs to the nearest image, thrown further by a quick flick.
+  // Dragging the front (right-centre) image, or anywhere with "anywhere" on,
+  // turns the ring with the pointer; on release it springs to the nearest
+  // image, thrown further by a quick flick.
   let drag = null;
+  // The press that may turn out to be a click: where it started and on which image.
+  let press = null;
 
   function pointerAngle(event) {
     const x = (event.clientX - stage.clientWidth / 2) / dial.values.ring.horizontalStretch;
@@ -625,12 +645,14 @@
 
   stage.addEventListener("pointerdown", (event) => {
     if (event.button !== 0) return;
-    const onFront = event.target.closest(".orbit-item") === items[frontIndex];
-    if (!onFront && !dial.values.motion.drag.anywhere) return;
+    const pressed = items.indexOf(event.target.closest(".orbit-item"));
+    press = { pointerId: event.pointerId, index: pressed, x: event.clientX, y: event.clientY };
+    const { enabled, anywhere } = dial.values.interaction.drag;
+    if (!enabled || (pressed !== frontIndex && !anywhere)) return;
     spin?.stop();
     stage.setPointerCapture(event.pointerId);
     stage.classList.add("is-dragging");
-    drag = { pointerId: event.pointerId, angle: pointerAngle(event), time: performance.now() };
+    drag = { pointerId: event.pointerId, angle: pointerAngle(event), x: event.clientX, y: event.clientY, time: performance.now() };
     spinVelocity = 0;
     lastTick = 0;
     clearHover();
@@ -639,16 +661,29 @@
 
   stage.addEventListener("pointermove", (event) => {
     if (!drag || event.pointerId !== drag.pointerId) return;
+    const { mode, follow } = dial.values.interaction.drag;
     const angle = pointerAngle(event);
     const now = performance.now();
+    // Straight-line modes turn the ring by the angle that distance covers
+    // along the ring's front.
+    const { radius, horizontalStretch, verticalStretch } = dial.values.ring;
+    const fit = Math.min(stage.clientWidth / DESIGN.width, stage.clientHeight / DESIGN.height);
+    const moved =
+      mode === "vertical"
+        ? (((event.clientY - drag.y) / (radius * verticalStretch * fit)) * 180) / Math.PI
+        : mode === "horizontal"
+          ? (((event.clientX - drag.x) / (radius * horizontalStretch * fit)) * 180) / Math.PI
+          : wrap(-180, 180, angle - drag.angle);
     // The left gap squeezes the images towards the front, so the ring has to
     // turn slightly more than the pointer for the image to stay under it.
     const gain = (180 - step / 2) / gapEdge();
-    const change = wrap(-180, 180, angle - drag.angle) * gain;
+    const change = moved * gain * follow;
     const elapsed = Math.max(now - drag.time, 1) / 1000;
     rotation += change;
     spinVelocity += (change / elapsed - spinVelocity) * 0.35;
     drag.angle = angle;
+    drag.x = event.clientX;
+    drag.y = event.clientY;
     drag.time = now;
     layout();
   });
@@ -668,13 +703,39 @@
     if (!drag || event.pointerId !== drag.pointerId) return;
     drag = null;
     stage.classList.remove("is-dragging");
-    const velocity = Math.max(-1440, Math.min(1440, spinVelocity));
-    const thrown = rotation + velocity * dial.values.motion.drag.flick;
+    const { maxSpeed, flick } = dial.values.interaction.drag;
+    const velocity = Math.max(-maxSpeed, Math.min(maxSpeed, spinVelocity));
+    const thrown = rotation + velocity * flick;
     settle(Math.round(thrown / step) * step, velocity);
   }
 
-  stage.addEventListener("pointerup", endDrag);
-  stage.addEventListener("pointercancel", endDrag);
+  // A press released within a few pixels of where it started is a click.
+  // Clicking another image brings it to the front, or moves one place
+  // towards it.
+  function endPress(event) {
+    if (!press || event.pointerId !== press.pointerId) return;
+    const { index, x, y } = press;
+    press = null;
+    const click = dial.values.interaction.click;
+    if (!click.enabled || index === -1 || Math.hypot(event.clientX - x, event.clientY - y) > 6) return;
+    // Places between the clicked image and the front, the short way round.
+    const places = Math.round(wrap(-180, 180, target + index * step) / step);
+    if (places === 0) {
+      if (click.frontAdvances) settle(target + step);
+    } else {
+      settle(target - (click.mode === "one step" ? Math.sign(places) : places) * step);
+    }
+  }
+
+  stage.addEventListener("pointerup", (event) => {
+    endDrag(event);
+    endPress(event);
+  });
+  stage.addEventListener("pointercancel", (event) => {
+    endDrag(event);
+    press = null;
+  });
+
 
   // Keyboard: arrow keys on the focused front image turn the ring one place.
   items.forEach((item, index) => {

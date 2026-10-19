@@ -17,6 +17,7 @@ then visit http://localhost:8000/.
 ## How to use it
 
 - **Drag the right-centre image** up or down along the ring. On release the ring springs to the nearest image; a quick flick carries it further.
+- **Click** any other image to bring it to the front.
 - **Hover** an image on the right half and the images from -90° to 90° lean back on their right side.
 - **Arrow keys** turn the ring one place when the front image is focused.
 - **Off / On pill** (bottom-left) shows the "Fancy" overlay: the orbit path, the size stops, the gap and fade zones, and each image's live angle, size and opacity.
@@ -49,12 +50,13 @@ Angles are measured from the front image: 0° is right-centre, positive angles r
 | Folder | Controls |
 | --- | --- |
 | Fancy | Master on/off for the overlay (same as the bottom-left pill) |
-| Motion | The spring used on release (stiffness 230, damping 35) |
-| Motion → Drag | Drag from anywhere or only the front image; how far a flick carries |
+| Motion | The spring the ring settles with (stiffness 230, damping 35) |
+| Interaction → Drag | On/off, drag from anywhere or only the front image, ring / vertical / horizontal mode, follow, how far a flick carries, flick speed cap |
+| Interaction → Click | On/off, bring the clicked image to the front or move one step towards it, whether clicking the front image moves on one place |
 | Ring | Radius, horizontal and vertical stretch, size of the left gap |
 | Images | Scale and corner radius |
-| Gap Fade | Fade arc and blur |
-| Dimming | On/off, far opacity, and the angles where dimming starts and is fully applied |
+| Images → Gap Fade | Fade arc and blur |
+| Images → Dimming | On/off, far opacity, and the angles where dimming starts and is fully applied |
 | Perspective | 3D depth of the left side, viewer distance, whether images turn with the plane |
 | Tilt | Viewer distance used for every tilt |
 | Tilt → Hover | Mode, which images tilt (range), amount, reach, lift scale, response |
