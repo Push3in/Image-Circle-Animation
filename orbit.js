@@ -35,13 +35,45 @@
   const stage = document.getElementById("stage");
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
-  DialKit.createDialRoot({ theme: "dark", defaultOpen: false });
+  const dialRoot = DialKit.createDialRoot({ theme: "dark", defaultOpen: false });
+
+  // Draws a line in each pad control from its centre dot to its handle, so
+  // the handle reads as something to move around. DialKit builds the panel's
+  // controls when they are shown and moves the handle by its left and top,
+  // so this watches the panel for both.
+  function linkPads() {
+    dialRoot.element.querySelectorAll(".dialkit-pad-plane").forEach((plane) => {
+      const point = plane.querySelector(".dialkit-pad-point");
+      if (!plane.querySelector(".pad-link")) {
+        plane.insertAdjacentHTML(
+          "afterbegin",
+          '<svg class="pad-link" viewBox="0 0 100 100" preserveAspectRatio="none"><line x1="50" y1="50" /></svg>'
+        );
+      }
+      const line = plane.querySelector(".pad-link line");
+      line.setAttribute("x2", parseFloat(point.style.left) || 0);
+      line.setAttribute("y2", parseFloat(point.style.top) || 0);
+    });
+  }
+  new MutationObserver(linkPads).observe(dialRoot.element, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["style"],
+  });
   const dial = DialKit.createDialKit("Orbit", {
     fancy: false, // overlay showing how the orbit is constructed
 
-    // The spring the ring settles with, after a drag, click or key press.
     motion: {
+      // The spring the ring settles with, after a drag, click or key press.
       transition: { type: "spring", stiffness: 230, damping: 35, mass: 1 },
+      // The ring turns one place on its own every `stepInterval` seconds, each
+      // turn taking `transitionDuration` seconds. Dragging pauses it and restarts the count.
+      auto: {
+        enabled: true,
+        stepInterval: [3, 0.5, 10, 0.1], // seconds from the start of one turn to the next
+        transitionDuration: [1, 0.1, 3, 0.05], // seconds each turn takes
+      },
     },
 
     // How the ring is turned by hand.
@@ -69,8 +101,9 @@
     // Shape of the ring the images sit on.
     ring: {
       radius: [420, 200, 560, 1],
-      horizontalStretch: [1, 1, 1.5, 0.01], // widens the ring; the Figma layout is about 1.27
-      verticalStretch: [1, 0.5, 1.5, 0.01], // makes the ring taller or shorter; both at 1 is a true circle
+      // x widens the ring (the Figma layout is about 1.27); y makes it taller
+      // or shorter. Both at 1 is a true circle.
+      stretch: { type: "pad", x: [1, 1, 1.5, 0.01], y: [0.9, 0.5, 1.5, 0.01] },
       leftGap: [60, 33, 140, 1], // degrees of empty arc on the left; 60 matches the Figma layout
     },
 
@@ -94,9 +127,9 @@
     // 3D depth: the ring becomes a plane whose left side recedes from the
     // viewer. This places the images; it has no say in how they tilt.
     perspective: {
+      enabled: true, // turn images to lie in the plane instead of facing the viewer
       depth: [0, 0, 1500, 10], // how far back the left side sits; the front stays put, and 0 is flat
       distance: [1200, 300, 4000, 10], // viewer distance once there is depth; smaller is more dramatic
-      turnImages: true, // turn images to lie in the plane instead of facing the viewer
     },
 
     // Tilts are added on top of an image's place on the ring. Each image tilts
@@ -107,13 +140,13 @@
       // While the pointer is over an image, the images within `range` of the
       // front tilt. "right" leans the right side of them all back by `amount`;
       // "pointer" turns them all to face away from the pointer, so each tilts
-      // by where the pointer is relative to it; "bank" and "lean" give just
-      // the hovered image a set tilt for its place on the ring.
+      // by where the pointer is relative to it; "bank" gives just the hovered
+      // image a set tilt for its place on the ring.
       hover: {
         enabled: true,
-        mode: { type: "select", options: ["right", "pointer", "bank", "lean"], default: "right" },
+        mode: { type: "select", options: ["right", "pointer", "bank"], default: "pointer" },
         range: [90, 0, 180, 5], // degrees either side of the front that can tilt; 90 is -90° to 90°
-        amount: [3, -60, 60, 1], // maximum degrees of tilt
+        amount: [8, -60, 60, 1], // maximum degrees of tilt
         reach: [400, 50, 1200, 10], // "pointer" mode: distance from an image at which its tilt is at maximum
         scale: [1.04, 1, 1.3, 0.01], // how much the hovered image grows
         response: [10, 2, 30, 1], // how quickly it follows the pointer; higher is snappier
@@ -234,20 +267,20 @@
   }
 
   function layout() {
-    const { radius, horizontalStretch, verticalStretch } = dial.values.ring;
+    const { radius, stretch } = dial.values.ring;
     const { scale: imageScale, cornerRadius, gapFade, dimming } = dial.values.images;
     const fit = Math.min(stage.clientWidth / DESIGN.width, stage.clientHeight / DESIGN.height);
     const centerX = stage.clientWidth / 2;
     const centerY = stage.clientHeight / 2;
-    const radiusX = radius * horizontalStretch * fit;
-    const radiusY = radius * verticalStretch * fit;
+    const radiusX = radius * stretch.x * fit;
+    const radiusY = radius * stretch.y * fit;
 
     // Perspective: depth falls off linearly from the front (0) to the far
     // left (-depth), which is a flat plane turned about a vertical axis.
     const { perspective, tilt: tilts } = dial.values;
     const depth = perspective.depth * fit;
     const viewer = perspective.distance * fit;
-    const planeTurn = perspective.turnImages ? Math.atan2(depth, radiusX * 2) : 0;
+    const planeTurn = perspective.enabled ? Math.atan2(depth, radiusX * 2) : 0;
     stage.style.perspective = depth > 0 ? `${viewer}px` : "none";
     // Tilts get a perspective of their own, applied per image.
     const tiltViewer = tilts.perspective * fit;
@@ -384,12 +417,16 @@
         } else if (hoverTilt.mode === "pointer" && pointerPose.amount > 0.001) {
           // Offset from where this image is drawn to the pointer, as -1 to 1
           // at `reach`. The side nearest the pointer swings away from the viewer.
+          // The pointer never leaves the hovered image, so as it lifts its reach
+          // shrinks to its own half-size: pointing at an edge gives full tilt.
           const reach = hoverTilt.reach * fit;
+          const reachX = reach + (width / 2 - reach) * lifted;
+          const reachY = reach + (height / 2 - reach) * lifted;
           const shown = geometry.point(angle);
-          const offsetX = Math.max(-1, Math.min(1, (pointerPose.x - shown.x) / reach));
-          const offsetY = Math.max(-1, Math.min(1, (pointerPose.y - shown.y) / reach));
+          const offsetX = Math.max(-1, Math.min(1, (pointerPose.x - shown.x) / reachX));
+          const offsetY = Math.max(-1, Math.min(1, (pointerPose.y - shown.y) / reachY));
           hover = { scale, x: -offsetY * maxTilt * pointerPose.amount, y: offsetX * maxTilt * pointerPose.amount };
-        } else if ((hoverTilt.mode === "bank" || hoverTilt.mode === "lean") && lifted > 0.001) {
+        } else if (hoverTilt.mode === "bank" && lifted > 0.001) {
           hover = { scale, axis: tiltAxis(hoverTilt.mode, angle), angle: maxTilt * lifted };
         }
       }
@@ -599,8 +636,9 @@
   // Springs the ring to `destination` (a whole number of steps), carrying
   // over `velocity` in degrees per second. By default that is the speed the
   // ring is already turning at, so a step that interrupts another keeps its
-  // momentum instead of starting again from rest.
-  function settle(destination, velocity = spinVelocity) {
+  // momentum instead of starting again from rest. `transition` replaces the
+  // spring, as the timed auto turn does.
+  function settle(destination, velocity = spinVelocity, transition = dial.values.motion.transition) {
     target = destination;
     frontIndex = wrap(0, items.length, -Math.round(target / step));
     spin?.stop();
@@ -612,7 +650,7 @@
       return;
     }
     spin = animate(rotation, target, {
-      ...dial.values.motion.transition,
+      ...transition,
       velocity,
       onUpdate: (latest) => {
         const now = performance.now();
@@ -630,6 +668,35 @@
     });
   }
 
+  // Auto turn: one place clockwise every `stepInterval` seconds, eased over
+  // `transitionDuration` seconds. Off for reduced motion, paused while the pointer is
+  // over an image, and paused while the tab is hidden: timers keep firing
+  // there but animation frames don't, so the turns would pile up and play all
+  // at once on return.
+  let autoTimer = 0;
+  let overImage = false;
+  function scheduleAuto() {
+    clearTimeout(autoTimer);
+    const { enabled, stepInterval, transitionDuration } = dial.values.motion.auto;
+    if (!enabled || reducedMotion.matches || document.hidden || overImage) return;
+    autoTimer = setTimeout(() => {
+      if (!drag) settle(target + step, 0, { type: "tween", duration: transitionDuration, ease: "easeInOut" });
+      scheduleAuto();
+    }, stepInterval * 1000);
+  }
+  document.addEventListener("visibilitychange", scheduleAuto);
+
+  // Leaving the images starts a fresh count. Touch has no hover, so it never pauses.
+  function setOverImage(over) {
+    if (over === overImage) return;
+    overImage = over;
+    scheduleAuto();
+  }
+  stage.addEventListener("pointermove", (event) => {
+    if (event.pointerType !== "touch") setOverImage(event.target.closest(".orbit-item") !== null);
+  });
+  stage.addEventListener("pointerleave", () => setOverImage(false));
+
   // Dragging the front (right-centre) image, or anywhere with "anywhere" on,
   // turns the ring with the pointer; on release it springs to the nearest
   // image, thrown further by a quick flick.
@@ -638,8 +705,9 @@
   let press = null;
 
   function pointerAngle(event) {
-    const x = (event.clientX - stage.clientWidth / 2) / dial.values.ring.horizontalStretch;
-    const y = (event.clientY - stage.clientHeight / 2) / dial.values.ring.verticalStretch;
+    const { stretch } = dial.values.ring;
+    const x = (event.clientX - stage.clientWidth / 2) / stretch.x;
+    const y = (event.clientY - stage.clientHeight / 2) / stretch.y;
     return (Math.atan2(y, x) * 180) / Math.PI;
   }
 
@@ -650,6 +718,7 @@
     const { enabled, anywhere } = dial.values.interaction.drag;
     if (!enabled || (pressed !== frontIndex && !anywhere)) return;
     spin?.stop();
+    clearTimeout(autoTimer);
     stage.setPointerCapture(event.pointerId);
     stage.classList.add("is-dragging");
     drag = { pointerId: event.pointerId, angle: pointerAngle(event), x: event.clientX, y: event.clientY, time: performance.now() };
@@ -666,13 +735,13 @@
     const now = performance.now();
     // Straight-line modes turn the ring by the angle that distance covers
     // along the ring's front.
-    const { radius, horizontalStretch, verticalStretch } = dial.values.ring;
+    const { radius, stretch } = dial.values.ring;
     const fit = Math.min(stage.clientWidth / DESIGN.width, stage.clientHeight / DESIGN.height);
     const moved =
       mode === "vertical"
-        ? (((event.clientY - drag.y) / (radius * verticalStretch * fit)) * 180) / Math.PI
+        ? (((event.clientY - drag.y) / (radius * stretch.y * fit)) * 180) / Math.PI
         : mode === "horizontal"
-          ? (((event.clientX - drag.x) / (radius * horizontalStretch * fit)) * 180) / Math.PI
+          ? (((event.clientX - drag.x) / (radius * stretch.x * fit)) * 180) / Math.PI
           : wrap(-180, 180, angle - drag.angle);
     // The left gap squeezes the images towards the front, so the ring has to
     // turn slightly more than the pointer for the image to stay under it.
@@ -707,6 +776,7 @@
     const velocity = Math.max(-maxSpeed, Math.min(maxSpeed, spinVelocity));
     const thrown = rotation + velocity * flick;
     settle(Math.round(thrown / step) * step, velocity);
+    scheduleAuto();
   }
 
   // A press released within a few pixels of where it started is a click.
@@ -725,6 +795,7 @@
     } else {
       settle(target - (click.mode === "one step" ? Math.sign(places) : places) * step);
     }
+    scheduleAuto();
   }
 
   stage.addEventListener("pointerup", (event) => {
@@ -744,10 +815,21 @@
       if (index !== frontIndex || !direction) return;
       event.preventDefault();
       settle(target + step * direction);
+      scheduleAuto();
       items[frontIndex].focus();
     });
   });
 
   dial.subscribe(layout);
   window.addEventListener("resize", layout);
+
+  // Restart the auto turn's count only when its own dials change.
+  let autoKey = "";
+  dial.subscribe(({ motion: { auto } }) => {
+    const key = `${auto.enabled} ${auto.stepInterval} ${auto.transitionDuration}`;
+    if (key !== autoKey) {
+      autoKey = key;
+      scheduleAuto();
+    }
+  });
 })();
