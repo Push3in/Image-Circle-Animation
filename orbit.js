@@ -139,13 +139,17 @@
       perspective: [1200, 300, 4000, 10], // viewer distance for a tilted image; smaller foreshortens more
       // While the pointer is over an image, the images within `range` of the
       // front tilt. "right" leans the right side of them all back by `amount`;
+      // "no tilt center" does the same but leaves the front image flat, easing
+      // in over the first place either side so a turning image doesn't jump;
       // "pointer" turns them all to face away from the pointer, so each tilts
-      // by where the pointer is relative to it; "bank" gives just the hovered
+      // by where the pointer is relative to it; "place" tips each one back on
+      // the side facing out from the ring's centre, more the further out it
+      // sits, so the ring dips like a bowl; "bank" gives just the hovered
       // image a set tilt for its place on the ring.
       hover: {
         enabled: true,
-        mode: { type: "select", options: ["right", "pointer", "bank"], default: "pointer" },
-        range: [90, 0, 180, 5], // degrees either side of the front that can tilt; 90 is -90° to 90°
+        mode: { type: "select", options: ["place", "right", "no tilt center", "pointer", "bank"], default: "no tilt center" },
+        range: [180, 0, 180, 5], // degrees either side of the front that can tilt; 180 is the whole ring
         amount: [8, -60, 60, 1], // maximum degrees of tilt
         reach: [400, 50, 1200, 10], // "pointer" mode: distance from an image at which its tilt is at maximum
         scale: [1.04, 1, 1.3, 0.01], // how much the hovered image grows
@@ -414,6 +418,10 @@
         if (hoverTilt.mode === "right" && pointerPose.amount > 0.001) {
           // Turn about the image's vertical centre line: right side back.
           hover = { scale, x: 0, y: maxTilt * pointerPose.amount };
+        } else if (hoverTilt.mode === "no tilt center" && pointerPose.amount > 0.001) {
+          // As "right", fading to nothing at the front.
+          const away = Math.min(1, Math.abs(angle) / step);
+          hover = { scale, x: 0, y: maxTilt * pointerPose.amount * away };
         } else if (hoverTilt.mode === "pointer" && pointerPose.amount > 0.001) {
           // Offset from where this image is drawn to the pointer, as -1 to 1
           // at `reach`. The side nearest the pointer swings away from the viewer.
@@ -426,6 +434,12 @@
           const offsetX = Math.max(-1, Math.min(1, (pointerPose.x - shown.x) / reachX));
           const offsetY = Math.max(-1, Math.min(1, (pointerPose.y - shown.y) / reachY));
           hover = { scale, x: -offsetY * maxTilt * pointerPose.amount, y: offsetX * maxTilt * pointerPose.amount };
+        } else if (hoverTilt.mode === "place" && pointerPose.amount > 0.001) {
+          // Where the image sits on the ring, as -1 to 1 across each radius:
+          // the outer side swings away, fully at the ring's edges.
+          const outX = (center.x - centerX) / radiusX;
+          const outY = (center.y - centerY) / radiusY;
+          hover = { scale, x: -outY * maxTilt * pointerPose.amount, y: outX * maxTilt * pointerPose.amount };
         } else if (hoverTilt.mode === "bank" && lifted > 0.001) {
           hover = { scale, axis: tiltAxis(hoverTilt.mode, angle), angle: maxTilt * lifted };
         }
