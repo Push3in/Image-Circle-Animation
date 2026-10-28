@@ -150,7 +150,7 @@
         enabled: true,
         mode: { type: "select", options: ["place", "right", "no tilt center", "pointer", "bank"], default: "no tilt center" },
         range: [180, 0, 180, 5], // degrees either side of the front that can tilt; 180 is the whole ring
-        amount: [8, -60, 60, 1], // maximum degrees of tilt
+        amount: [16, -60, 60, 1], // maximum degrees of tilt
         reach: [400, 50, 1200, 10], // "pointer" mode: distance from an image at which its tilt is at maximum
         scale: [1.04, 1, 1.3, 0.01], // how much the hovered image grows
         response: [10, 2, 30, 1], // how quickly it follows the pointer; higher is snappier

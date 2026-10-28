@@ -19,7 +19,7 @@ then visit http://localhost:8000/.
 - **Auto turn** moves the ring one place clockwise every 3 seconds, each turn easing over 1 second. It pauses while the pointer is over an image, while you drag and while the tab is in the background, and starts a fresh count after you drag, click or use the arrow keys.
 - **Drag the right-centre image** up or down along the ring. On release the ring springs to the nearest image; a quick flick carries it further.
 - **Click** any other image to bring it to the front.
-- **Hover** any image and every image except the front one leans its right side back, up to 8°. The front image stays flat, and the tilt eases in over the first place either side of it so a turning image doesn't jump. The hovered image lifts slightly. Switch Tilt → Hover → Mode to "place" to tilt every image by its place on the ring instead, so the ring dips like a bowl.
+- **Hover** any image and every image except the front one leans its right side back, up to 16°. The front image stays flat, and the tilt eases in over the first place either side of it so a turning image doesn't jump. The hovered image lifts slightly. Switch Tilt → Hover → Mode to "place" to tilt every image by its place on the ring instead, so the ring dips like a bowl.
 - **Arrow keys** turn the ring one place when the front image is focused.
 - **Off / On pill** (bottom-left) shows the "Fancy" overlay: the orbit path, the size stops, the gap and fade zones, and each image's live angle, size and opacity.
 - **Dial panel** (top-right icon) tunes everything live. Nothing is saved; reloading restores the defaults.
@@ -61,7 +61,7 @@ Angles are measured from the front image: 0° is right-centre, positive angles r
 | Images → Dimming | On/off, far opacity, and the angles where dimming starts and is fully applied |
 | Perspective | Enabled (whether images turn to lie in the plane), 3D depth of the left side, viewer distance |
 | Tilt | Viewer distance used for every tilt |
-| Tilt → Hover | Mode (place, right, no tilt center, pointer or bank; default no tilt center), which images tilt (range), amount (default 8°), reach, lift scale, response |
+| Tilt → Hover | Mode (place, right, no tilt center, pointer or bank; default no tilt center), which images tilt (range), amount (default 16°), reach, lift scale, response |
 | Tilt → Turn | Tip the images while the ring is turning, by bank or lean, scaled by turning speed (off by default) |
 | Skeleton | What the overlay draws and how it looks (starts collapsed) |
 
