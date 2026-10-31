@@ -1,4 +1,4 @@
-# Image Circle Animation
+# Image Circular Animation
 
 Eleven images arranged in a ring. The largest sits at right-centre; the rest shrink as they go round to the left. The ring turns one place every 3 seconds on its own, or when you drag or click, with each image growing or shrinking as it moves into its next place.
 
